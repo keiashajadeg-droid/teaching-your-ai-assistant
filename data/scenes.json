@@ -1,0 +1,401 @@
+{
+ "demo": {
+  "folder": "classifier-benchmark",
+  "start": {
+   "AGENTS.md": "# Classifier benchmark\n\n## What this is\nA small benchmark comparing simple classifiers on synthetic 2D datasets\nfrom scikit-learn (moons, circles, blobs).\n\n## How to run\nuv run python run.py\n\n## Rules\n- Keep the code simple: one script, lightly commented.\n- Random seed is 0. Never change it.\n- Results go in results/: one CSV and one plot per run.\n\n## Notes\n- context/roadmap.md: where we are. \"Now\" at the top.\n- context/decisions.md: dated decisions. When one changes, mark the old one\n  superseded. Never delete it.\n- context/notebook/: one dated entry per work session.\n\nAfter each step, update the roadmap and the notebook, and log any decision.\n"
+  },
+  "steps": [
+   {
+    "prompt": "Scaffold this project: a run.py that trains a logistic regression and an RBF-kernel SVM (C=1) on the moons dataset, and saves the accuracies to results/.",
+    "events": [
+     {
+      "kind": "tool",
+      "text": "$ find . -type f -not -path './.venv/*' | head -50 && for f in $(find . -type f -not -pat…",
+      "reads": [
+       "AGENTS.md"
+      ]
+     },
+     {
+      "kind": "write",
+      "path": "pyproject.toml",
+      "content": "[project]\nname = \"classifier-benchmark\"\nversion = \"0.1.0\"\ndescription = \"Simple classifiers on synthetic 2D datasets\"\nrequires-python = \">=3.10\"\ndependencies = [\n    \"scikit-learn\",\n    \"matplotlib\",\n]\n"
+     },
+     {
+      "kind": "write",
+      "path": "run.py",
+      "content": "\"\"\"Benchmark simple classifiers on the moons dataset.\n\nWrites one CSV of accuracies and one decision-boundary plot to results/.\n\"\"\"\nimport csv\nfrom datetime import datetime\nfrom pathlib import Path\n\nimport matplotlib\n\nmatplotlib.use(\"Agg\")  # no display needed\nimport matplotlib.pyplot as plt\nimport numpy as np\nfrom sklearn.datasets import make_moons\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.svm import SVC\n\nSEED = 0  # never change\n\n# Data: 500 noisy moons, 70/30 train/test split.\nX, y = make_moons(n_samples=500, noise=0.3, random_state=SEED)\nX_train, X_test, y_train, y_test = train_test_split(\n    X, y, test_size=0.3, random_state=SEED\n)\n\nmodels = {\n    \"logistic_regression\": LogisticRegression(random_state=SEED),\n    \"svm_rbf_C1\": SVC(kernel=\"rbf\", C=1, random_state=SEED),\n}\n\n# Train and score each model on the held-out test set.\nresults = []\nfor name, model in models.items():\n    model.fit(X_train, y_train)\n    acc = model.score(X_test, y_test)\n    results.append({\"dataset\": \"moons\", \"model\": name, \"test_accuracy\": round(acc, 4)})\n    print(f\"{name}: {acc:.4f}\")\n\n# One CSV and one plot per run, sharing a timestamp.\nout = Path(\"results\")\nout.mkdir(exist_ok=True)\nstamp = datetime.now().strftime(\"%Y%m%d-%H%M%S\")\n\nwith open(out / f\"{stamp}.csv\", \"w\", newline=\"\") as f:\n    writer = csv.DictWriter(f, fieldnames=results[0].keys())\n    writer.writeheader()\n    writer.writerows(results)\n\n# Plot decision boundaries over a grid, with test points on top.\nxx, yy = np.meshgrid(\n    np.linspace(X[:, 0].min() - 0.5, X[:, 0].max() + 0.5, 300),\n    np.linspace(X[:, 1].min() - 0.5, X[:, 1].max() + 0.5, 300),\n)\ngrid = np.c_[xx.ravel(), yy.ravel()]\n\nfig, axes = plt.subplots(1, len(models), figsize=(5 * len(models), 4.5))\nfor ax, (name, model), r in zip(axes, models.items(), results):\n    zz = model.predict(grid).reshape(xx.shape)\n    ax.contourf(xx, yy, zz, alpha=0.25, cmap=\"coolwarm\")\n    ax.scatter(X_test[:, 0], X_test[:, 1], c=y_test, cmap=\"coolwarm\", edgecolor=\"k\", s=20)\n    ax.set_title(f\"{name}\\ntest accuracy {r['test_accuracy']:.3f}\")\nfig.tight_layout()\nfig.savefig(out / f\"{stamp}.png\", dpi=120)\n\nprint(f\"Saved results/{stamp}.csv and results/{stamp}.png\")\n"
+     },
+     {
+      "kind": "tool",
+      "text": "$ uv run python run.py 2>&1 | tail -15 && ls results && cat results/*.csv",
+      "reads": [
+       "run.py"
+      ]
+     },
+     {
+      "kind": "added",
+      "files": {
+       "results/20261119-082122.csv": "dataset,model,test_accuracy\nmoons,logistic_regression,0.8133\nmoons,svm_rbf_C1,0.88\n",
+       "results/20261119-082122.png": null
+      }
+     },
+     {
+      "kind": "tool",
+      "text": "Read results/20261119-082122.png",
+      "reads": [
+       "results/20261119-082122.png"
+      ]
+     },
+     {
+      "kind": "text",
+      "text": "Plot looks right. Now the context files."
+     },
+     {
+      "kind": "write",
+      "path": "context/roadmap.md",
+      "content": "# Roadmap\n\n## Now\n- Scaffold done: `run.py` trains logistic regression and RBF SVM (C=1) on moons.\n  First run: logistic regression 0.8133, SVM 0.8800 test accuracy.\n\n## Next\n- Add the circles and blobs datasets.\n- Consider more simple classifiers (e.g. k-NN, decision tree).\n\n## Done\n- 2026-11-19: Project scaffold (`pyproject.toml`, `run.py`, `results/`, `context/`).\n"
+     },
+     {
+      "kind": "write",
+      "path": "context/decisions.md",
+      "content": "# Decisions\n\n## 2026-11-19: Moons dataset setup\n`make_moons(n_samples=500, noise=0.3, random_state=0)`, 70/30 train/test split\n(`random_state=0`). Metric is test accuracy.\n\n## 2026-11-19: Initial models\n`LogisticRegression` with defaults, and `SVC(kernel=\"rbf\", C=1)` (gamma left at\nsklearn's default `\"scale\"`). No feature scaling: moons features are already on\na similar scale.\n\n## 2026-11-19: Results file naming\nEach run writes `results/<YYYYMMDD-HHMMSS>.csv` and `.png` with a shared\ntimestamp, so runs never overwrite each other.\n\n## 2026-11-19: Dependencies\nManaged by uv through `pyproject.toml` (scikit-learn, matplotlib), with\nversions left unpinned for now.\n"
+     },
+     {
+      "kind": "write",
+      "path": "context/notebook/2026-11-19.md",
+      "content": "# 2026-11-19\n\n## Scaffolded the project\n- Added `pyproject.toml` (scikit-learn, matplotlib) and `run.py`.\n- `run.py` trains logistic regression and an RBF SVM (C=1) on moons, saves a CSV\n  of test accuracies and a plot of the decision boundaries to `results/`.\n- First run (`results/20261119-082122.*`):\n  - logistic_regression: 0.8133\n  - svm_rbf_C1: 0.8800\n- As expected, the linear boundary can't follow the curved moons, but the RBF SVM can.\n- Setup choices are logged in `decisions.md`.\n"
+     },
+     {
+      "kind": "text",
+      "text": "I wrote `run.py` and ran it. Both models trained on moons and the accuracies are saved in `results/`:\n\n| Model | Test accuracy |\n|---|---|\n| Logistic regression | 0.8133 |\n| RBF SVM (C=1) | 0.8800 |\n\nThe plot shows what you'd expect: logistic regression can only draw a straight line, while the SVM's boundary curves around the moons.\n\n**What's new**\n- [pyproject.toml](pyproject.toml): lists scikit-learn and matplotlib so `uv run` installs them.\n- [run.py](run.py): one script, lightly commented, with the seed fixed at 0. Each run saves one CSV and one decision-boundary plot to `results/`.\n- [results/20261119-082122.csv](results/20261119-082122.csv) and [.png](results/20261119-082122.png) from the first run.\n- [context/roadmap.md](context/roadmap.md), [context/decisions.md](context/decisions.md) and [context/notebook/2026-11-19.md](context/notebook/2026-11-19.md), created since they didn't exist yet.\n\n**Choices I made that you may want to change** (all logged in decisions.md):\n- **Data:** 500 samples with noise 0.3, and 30% held out for testing.\n- **No feature scaling:** the two moons features are already on similar scales.\n- **File names:** results are named by timestamp, so runs never overwrite each other.\n- **Versions:** dependency versions aren't pinned."
+     }
+    ]
+   },
+   {
+    "prompt": "Add a small neural net (MLPClassifier) to the comparison, to compare a flexible model with the SVM.",
+    "events": [
+     {
+      "kind": "edit",
+      "path": "run.py",
+      "content": "\"\"\"Benchmark simple classifiers on the moons dataset.\n\nWrites one CSV of accuracies and one decision-boundary plot to results/.\n\"\"\"\nimport csv\nfrom datetime import datetime\nfrom pathlib import Path\n\nimport matplotlib\n\nmatplotlib.use(\"Agg\")  # no display needed\nimport matplotlib.pyplot as plt\nimport numpy as np\nfrom sklearn.datasets import make_moons\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.neural_network import MLPClassifier\nfrom sklearn.svm import SVC\n\nSEED = 0  # never change\n\n# Data: 500 noisy moons, 70/30 train/test split.\nX, y = make_moons(n_samples=500, noise=0.3, random_state=SEED)\nX_train, X_test, y_train, y_test = train_test_split(\n    X, y, test_size=0.3, random_state=SEED\n)\n\nmodels = {\n    \"logistic_regression\": LogisticRegression(random_state=SEED),\n    \"svm_rbf_C1\": SVC(kernel=\"rbf\", C=1, random_state=SEED),\n}\n\n# Train and score each model on the held-out test set.\nresults = []\nfor name, model in models.items():\n    model.fit(X_train, y_train)\n    acc = model.score(X_test, y_test)\n    results.append({\"dataset\": \"moons\", \"model\": name, \"test_accuracy\": round(acc, 4)})\n    print(f\"{name}: {acc:.4f}\")\n\n# One CSV and one plot per run, sharing a timestamp.\nout = Path(\"results\")\nout.mkdir(exist_ok=True)\nstamp = datetime.now().strftime(\"%Y%m%d-%H%M%S\")\n\nwith open(out / f\"{stamp}.csv\", \"w\", newline=\"\") as f:\n    writer = csv.DictWriter(f, fieldnames=results[0].keys())\n    writer.writeheader()\n    writer.writerows(results)\n\n# Plot decision boundaries over a grid, with test points on top.\nxx, yy = np.meshgrid(\n    np.linspace(X[:, 0].min() - 0.5, X[:, 0].max() + 0.5, 300),\n    np.linspace(X[:, 1].min() - 0.5, X[:, 1].max() + 0.5, 300),\n)\ngrid = np.c_[xx.ravel(), yy.ravel()]\n\nfig, axes = plt.subplots(1, len(models), figsize=(5 * len(models), 4.5))\nfor ax, (name, model), r in zip(axes, models.items(), results):\n    zz = model.predict(grid).reshape(xx.shape)\n    ax.contourf(xx, yy, zz, alpha=0.25, cmap=\"coolwarm\")\n    ax.scatter(X_test[:, 0], X_test[:, 1], c=y_test, cmap=\"coolwarm\", edgecolor=\"k\", s=20)\n    ax.set_title(f\"{name}\\ntest accuracy {r['test_accuracy']:.3f}\")\nfig.tight_layout()\nfig.savefig(out / f\"{stamp}.png\", dpi=120)\n\nprint(f\"Saved results/{stamp}.csv and results/{stamp}.png\")\n"
+     },
+     {
+      "kind": "edit",
+      "path": "run.py",
+      "content": "\"\"\"Benchmark simple classifiers on the moons dataset.\n\nWrites one CSV of accuracies and one decision-boundary plot to results/.\n\"\"\"\nimport csv\nfrom datetime import datetime\nfrom pathlib import Path\n\nimport matplotlib\n\nmatplotlib.use(\"Agg\")  # no display needed\nimport matplotlib.pyplot as plt\nimport numpy as np\nfrom sklearn.datasets import make_moons\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.neural_network import MLPClassifier\nfrom sklearn.svm import SVC\n\nSEED = 0  # never change\n\n# Data: 500 noisy moons, 70/30 train/test split.\nX, y = make_moons(n_samples=500, noise=0.3, random_state=SEED)\nX_train, X_test, y_train, y_test = train_test_split(\n    X, y, test_size=0.3, random_state=SEED\n)\n\nmodels = {\n    \"logistic_regression\": LogisticRegression(random_state=SEED),\n    \"svm_rbf_C1\": SVC(kernel=\"rbf\", C=1, random_state=SEED),\n    # Small neural net: two hidden layers of 16 units.\n    \"mlp_16x16\": MLPClassifier(\n        hidden_layer_sizes=(16, 16), max_iter=2000, random_state=SEED\n    ),\n}\n\n# Train and score each model on the held-out test set.\nresults = []\nfor name, model in models.items():\n    model.fit(X_train, y_train)\n    acc = model.score(X_test, y_test)\n    results.append({\"dataset\": \"moons\", \"model\": name, \"test_accuracy\": round(acc, 4)})\n    print(f\"{name}: {acc:.4f}\")\n\n# One CSV and one plot per run, sharing a timestamp.\nout = Path(\"results\")\nout.mkdir(exist_ok=True)\nstamp = datetime.now().strftime(\"%Y%m%d-%H%M%S\")\n\nwith open(out / f\"{stamp}.csv\", \"w\", newline=\"\") as f:\n    writer = csv.DictWriter(f, fieldnames=results[0].keys())\n    writer.writeheader()\n    writer.writerows(results)\n\n# Plot decision boundaries over a grid, with test points on top.\nxx, yy = np.meshgrid(\n    np.linspace(X[:, 0].min() - 0.5, X[:, 0].max() + 0.5, 300),\n    np.linspace(X[:, 1].min() - 0.5, X[:, 1].max() + 0.5, 300),\n)\ngrid = np.c_[xx.ravel(), yy.ravel()]\n\nfig, axes = plt.subplots(1, len(models), figsize=(5 * len(models), 4.5))\nfor ax, (name, model), r in zip(axes, models.items(), results):\n    zz = model.predict(grid).reshape(xx.shape)\n    ax.contourf(xx, yy, zz, alpha=0.25, cmap=\"coolwarm\")\n    ax.scatter(X_test[:, 0], X_test[:, 1], c=y_test, cmap=\"coolwarm\", edgecolor=\"k\", s=20)\n    ax.set_title(f\"{name}\\ntest accuracy {r['test_accuracy']:.3f}\")\nfig.tight_layout()\nfig.savefig(out / f\"{stamp}.png\", dpi=120)\n\nprint(f\"Saved results/{stamp}.csv and results/{stamp}.png\")\n"
+     },
+     {
+      "kind": "tool",
+      "text": "$ uv run python run.py 2>&1 | tail -8 && ls results",
+      "reads": [
+       "run.py"
+      ]
+     },
+     {
+      "kind": "added",
+      "files": {
+       "results/20261119-082948.csv": "dataset,model,test_accuracy\nmoons,logistic_regression,0.8133\nmoons,svm_rbf_C1,0.88\nmoons,mlp_16x16,0.8867\n",
+       "results/20261119-082948.png": null
+      }
+     },
+     {
+      "kind": "tool",
+      "text": "Read results/20261119-082948.png",
+      "reads": [
+       "results/20261119-082948.png"
+      ]
+     },
+     {
+      "kind": "text",
+      "text": "MLP 0.8867 vs SVM 0.8800 is one test point out of 150, so it's a tie. I'll note that in the records."
+     },
+     {
+      "kind": "edit",
+      "path": "context/roadmap.md",
+      "content": "# Roadmap\n\n## Now\n- Comparing three models on moons: logistic regression 0.8133, RBF SVM (C=1)\n  0.8800, MLP 16x16 0.8867 test accuracy. MLP vs SVM is one test point out of\n  150, so it's effectively a tie.\n\n## Next\n- Add the circles and blobs datasets.\n- Consider more simple classifiers (e.g. k-NN, decision tree).\n\n## Done\n- 2026-11-19: Project scaffold (`pyproject.toml`, `run.py`, `results/`, `context/`).\n"
+     },
+     {
+      "kind": "edit",
+      "path": "context/roadmap.md",
+      "content": "# Roadmap\n\n## Now\n- Comparing three models on moons: logistic regression 0.8133, RBF SVM (C=1)\n  0.8800, MLP 16x16 0.8867 test accuracy. MLP vs SVM is one test point out of\n  150, so it's effectively a tie.\n\n## Next\n- Add the circles and blobs datasets.\n- Consider more simple classifiers (e.g. k-NN, decision tree).\n- Use cross-validation or several data seeds before reading anything into\n  small accuracy gaps (would need its own decision since seed is fixed at 0).\n\n## Done\n- 2026-11-19: Added MLPClassifier (16x16) to the comparison.\n- 2026-11-19: Project scaffold (`pyproject.toml`, `run.py`, `results/`, `context/`).\n"
+     },
+     {
+      "kind": "edit",
+      "path": "context/decisions.md",
+      "content": "# Decisions\n\n## 2026-11-19: Moons dataset setup\n`make_moons(n_samples=500, noise=0.3, random_state=0)`, 70/30 train/test split\n(`random_state=0`). Metric is test accuracy.\n\n## 2026-11-19: Initial models\n`LogisticRegression` with defaults, and `SVC(kernel=\"rbf\", C=1)` (gamma left at\nsklearn's default `\"scale\"`). No feature scaling: moons features are already on\na similar scale.\n\n## 2026-11-19: Add a small neural net\n`MLPClassifier(hidden_layer_sizes=(16, 16), max_iter=2000, random_state=0)`,\nother settings at sklearn defaults (ReLU, Adam). Kept small, as a flexible\nmodel to compare with the RBF SVM. `max_iter` raised so it converges.\n\n## 2026-11-19: Results file naming\nEach run writes `results/<YYYYMMDD-HHMMSS>.csv` and `.png` with a shared\ntimestamp, so runs never overwrite each other.\n\n## 2026-11-19: Dependencies\nManaged by uv through `pyproject.toml` (scikit-learn, matplotlib), with\nversions left unpinned for now.\n"
+     },
+     {
+      "kind": "edit",
+      "path": "context/notebook/2026-11-19.md",
+      "content": "# 2026-11-19\n\n## Scaffolded the project\n- Added `pyproject.toml` (scikit-learn, matplotlib) and `run.py`.\n- `run.py` trains logistic regression and an RBF SVM (C=1) on moons, saves a CSV\n  of test accuracies and a plot of the decision boundaries to `results/`.\n- First run (`results/20261119-082122.*`):\n  - logistic_regression: 0.8133\n  - svm_rbf_C1: 0.8800\n- As expected, the linear boundary can't follow the curved moons, but the RBF SVM can.\n- Setup choices are logged in `decisions.md`.\n\n## Added a small neural net\n- Added `MLPClassifier` (two hidden layers of 16) as a flexible model to compare\n  with the SVM.\n- Run `results/20261119-082948.*`:\n  - logistic_regression: 0.8133\n  - svm_rbf_C1: 0.8800\n  - mlp_16x16: 0.8867\n- MLP vs SVM is one test point out of 150, so that's noise rather than a\n  real win. In the plot, both find a similar curved boundary; the MLP's is\n  piecewise-linear (ReLU kinks), the SVM's is smooth.\n"
+     },
+     {
+      "kind": "text",
+      "text": "I added a small neural net to [run.py](run.py) and reran the benchmark. It scores about the same as the SVM:\n\n| Model | Test accuracy |\n|---|---|\n| Logistic regression | 0.8133 |\n| RBF SVM (C=1) | 0.8800 |\n| Neural net (2 layers of 16) | 0.8867 |\n\nThe 0.007 gap between the neural net and the SVM is one test point out of 150, so it's a tie, not a win. The [plot](results/20261119-082948.png) shows why: both models find almost the same curved boundary. The SVM's curve is smooth, while the neural net's is made of straight segments with kinks.\n\n**Setup:** two hidden layers of 16 units, seed 0, and sklearn's defaults otherwise. I raised the training limit to 2000 iterations so it trains to completion.\n\nThe neural net, the results and the tie are recorded in decisions.md, the notebook and the roadmap. I also added a roadmap item: to tell close models apart, compare results over several data splits instead of one. That would mean using more seeds than 0, so it needs your call first."
+     }
+    ]
+   },
+   {
+    "prompt": "Change the SVM's C from 1 to 10, because C = 1 underfits the moons.",
+    "events": [
+     {
+      "kind": "edit",
+      "path": "run.py",
+      "content": "\"\"\"Benchmark simple classifiers on the moons dataset.\n\nWrites one CSV of accuracies and one decision-boundary plot to results/.\n\"\"\"\nimport csv\nfrom datetime import datetime\nfrom pathlib import Path\n\nimport matplotlib\n\nmatplotlib.use(\"Agg\")  # no display needed\nimport matplotlib.pyplot as plt\nimport numpy as np\nfrom sklearn.datasets import make_moons\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.neural_network import MLPClassifier\nfrom sklearn.svm import SVC\n\nSEED = 0  # never change\n\n# Data: 500 noisy moons, 70/30 train/test split.\nX, y = make_moons(n_samples=500, noise=0.3, random_state=SEED)\nX_train, X_test, y_train, y_test = train_test_split(\n    X, y, test_size=0.3, random_state=SEED\n)\n\nmodels = {\n    \"logistic_regression\": LogisticRegression(random_state=SEED),\n    # C=10: C=1 underfit the moons (see context/decisions.md).\n    \"svm_rbf_C10\": SVC(kernel=\"rbf\", C=10, random_state=SEED),\n    # Small neural net: two hidden layers of 16 units.\n    \"mlp_16x16\": MLPClassifier(\n        hidden_layer_sizes=(16, 16), max_iter=2000, random_state=SEED\n    ),\n}\n\n# Train and score each model on the held-out test set.\nresults = []\nfor name, model in models.items():\n    model.fit(X_train, y_train)\n    acc = model.score(X_test, y_test)\n    results.append({\"dataset\": \"moons\", \"model\": name, \"test_accuracy\": round(acc, 4)})\n    print(f\"{name}: {acc:.4f}\")\n\n# One CSV and one plot per run, sharing a timestamp.\nout = Path(\"results\")\nout.mkdir(exist_ok=True)\nstamp = datetime.now().strftime(\"%Y%m%d-%H%M%S\")\n\nwith open(out / f\"{stamp}.csv\", \"w\", newline=\"\") as f:\n    writer = csv.DictWriter(f, fieldnames=results[0].keys())\n    writer.writeheader()\n    writer.writerows(results)\n\n# Plot decision boundaries over a grid, with test points on top.\nxx, yy = np.meshgrid(\n    np.linspace(X[:, 0].min() - 0.5, X[:, 0].max() + 0.5, 300),\n    np.linspace(X[:, 1].min() - 0.5, X[:, 1].max() + 0.5, 300),\n)\ngrid = np.c_[xx.ravel(), yy.ravel()]\n\nfig, axes = plt.subplots(1, len(models), figsize=(5 * len(models), 4.5))\nfor ax, (name, model), r in zip(axes, models.items(), results):\n    zz = model.predict(grid).reshape(xx.shape)\n    ax.contourf(xx, yy, zz, alpha=0.25, cmap=\"coolwarm\")\n    ax.scatter(X_test[:, 0], X_test[:, 1], c=y_test, cmap=\"coolwarm\", edgecolor=\"k\", s=20)\n    ax.set_title(f\"{name}\\ntest accuracy {r['test_accuracy']:.3f}\")\nfig.tight_layout()\nfig.savefig(out / f\"{stamp}.png\", dpi=120)\n\nprint(f\"Saved results/{stamp}.csv and results/{stamp}.png\")\n"
+     },
+     {
+      "kind": "tool",
+      "text": "$ uv run python run.py 2>&1 | tail -6 && uv run python -c \"",
+      "reads": [
+       "run.py"
+      ]
+     },
+     {
+      "kind": "added",
+      "files": {
+       "results/20261119-084342.csv": "dataset,model,test_accuracy\nmoons,logistic_regression,0.8133\nmoons,svm_rbf_C10,0.8867\nmoons,mlp_16x16,0.8867\n",
+       "results/20261119-084342.png": null
+      }
+     },
+     {
+      "kind": "edit",
+      "path": "run.py",
+      "content": "\"\"\"Benchmark simple classifiers on the moons dataset.\n\nWrites one CSV of accuracies and one decision-boundary plot to results/.\n\"\"\"\nimport csv\nfrom datetime import datetime\nfrom pathlib import Path\n\nimport matplotlib\n\nmatplotlib.use(\"Agg\")  # no display needed\nimport matplotlib.pyplot as plt\nimport numpy as np\nfrom sklearn.datasets import make_moons\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.neural_network import MLPClassifier\nfrom sklearn.svm import SVC\n\nSEED = 0  # never change\n\n# Data: 500 noisy moons, 70/30 train/test split.\nX, y = make_moons(n_samples=500, noise=0.3, random_state=SEED)\nX_train, X_test, y_train, y_test = train_test_split(\n    X, y, test_size=0.3, random_state=SEED\n)\n\nmodels = {\n    \"logistic_regression\": LogisticRegression(random_state=SEED),\n    # C=10 (was 1) to reduce suspected underfitting; see context/decisions.md.\n    \"svm_rbf_C10\": SVC(kernel=\"rbf\", C=10, random_state=SEED),\n    # Small neural net: two hidden layers of 16 units.\n    \"mlp_16x16\": MLPClassifier(\n        hidden_layer_sizes=(16, 16), max_iter=2000, random_state=SEED\n    ),\n}\n\n# Train and score each model on the held-out test set.\nresults = []\nfor name, model in models.items():\n    model.fit(X_train, y_train)\n    acc = model.score(X_test, y_test)\n    results.append({\"dataset\": \"moons\", \"model\": name, \"test_accuracy\": round(acc, 4)})\n    print(f\"{name}: {acc:.4f}\")\n\n# One CSV and one plot per run, sharing a timestamp.\nout = Path(\"results\")\nout.mkdir(exist_ok=True)\nstamp = datetime.now().strftime(\"%Y%m%d-%H%M%S\")\n\nwith open(out / f\"{stamp}.csv\", \"w\", newline=\"\") as f:\n    writer = csv.DictWriter(f, fieldnames=results[0].keys())\n    writer.writeheader()\n    writer.writerows(results)\n\n# Plot decision boundaries over a grid, with test points on top.\nxx, yy = np.meshgrid(\n    np.linspace(X[:, 0].min() - 0.5, X[:, 0].max() + 0.5, 300),\n    np.linspace(X[:, 1].min() - 0.5, X[:, 1].max() + 0.5, 300),\n)\ngrid = np.c_[xx.ravel(), yy.ravel()]\n\nfig, axes = plt.subplots(1, len(models), figsize=(5 * len(models), 4.5))\nfor ax, (name, model), r in zip(axes, models.items(), results):\n    zz = model.predict(grid).reshape(xx.shape)\n    ax.contourf(xx, yy, zz, alpha=0.25, cmap=\"coolwarm\")\n    ax.scatter(X_test[:, 0], X_test[:, 1], c=y_test, cmap=\"coolwarm\", edgecolor=\"k\", s=20)\n    ax.set_title(f\"{name}\\ntest accuracy {r['test_accuracy']:.3f}\")\nfig.tight_layout()\nfig.savefig(out / f\"{stamp}.png\", dpi=120)\n\nprint(f\"Saved results/{stamp}.csv and results/{stamp}.png\")\n"
+     },
+     {
+      "kind": "edit",
+      "path": "context/decisions.md",
+      "content": "# Decisions\n\n## 2026-11-19: Moons dataset setup\n`make_moons(n_samples=500, noise=0.3, random_state=0)`, 70/30 train/test split\n(`random_state=0`). Metric is test accuracy.\n\n## 2026-11-19: Initial models\n**Partly superseded by \"SVM C raised to 10\" (2026-11-19): the SVM's C is now 10.**\n`LogisticRegression` with defaults, and `SVC(kernel=\"rbf\", C=1)` (gamma left at\nsklearn's default `\"scale\"`). No feature scaling: moons features are already on\na similar scale.\n\n## 2026-11-19: Add a small neural net\n`MLPClassifier(hidden_layer_sizes=(16, 16), max_iter=2000, random_state=0)`,\nother settings at sklearn defaults (ReLU, Adam). Kept small, as a flexible\nmodel to compare with the RBF SVM. `max_iter` raised so it converges.\n\n## 2026-11-19: Results file naming\nEach run writes `results/<YYYYMMDD-HHMMSS>.csv` and `.png` with a shared\ntimestamp, so runs never overwrite each other.\n\n## 2026-11-19: Dependencies\nManaged by uv through `pyproject.toml` (scikit-learn, matplotlib), with\nversions left unpinned for now.\n"
+     },
+     {
+      "kind": "edit",
+      "path": "context/decisions.md",
+      "content": "# Decisions\n\n## 2026-11-19: Moons dataset setup\n`make_moons(n_samples=500, noise=0.3, random_state=0)`, 70/30 train/test split\n(`random_state=0`). Metric is test accuracy.\n\n## 2026-11-19: Initial models\n**Partly superseded by \"SVM C raised to 10\" (2026-11-19): the SVM's C is now 10.**\n`LogisticRegression` with defaults, and `SVC(kernel=\"rbf\", C=1)` (gamma left at\nsklearn's default `\"scale\"`). No feature scaling: moons features are already on\na similar scale.\n\n## 2026-11-19: Add a small neural net\n`MLPClassifier(hidden_layer_sizes=(16, 16), max_iter=2000, random_state=0)`,\nother settings at sklearn defaults (ReLU, Adam). Kept small, as a flexible\nmodel to compare with the RBF SVM. `max_iter` raised so it converges.\n\n## 2026-11-19: SVM C raised to 10\nSupersedes the C=1 part of \"Initial models\". Now `SVC(kernel=\"rbf\", C=10)`,\ngamma still `\"scale\"`; model renamed `svm_rbf_C10` in results.\nReason (user's call): C=1 underfits the moons.\nMeasured on the fixed split (seed 0):\n- C=1: train 0.9029, test 0.8800\n- C=10: train 0.9114, test 0.8867\nThe gain is one test point out of 150 and the train/test gap was small at\nC=1, so this split gives only weak evidence of underfitting. With noise=0.3,\nboth may be close to the best achievable accuracy.\n\n## 2026-11-19: Results file naming\nEach run writes `results/<YYYYMMDD-HHMMSS>.csv` and `.png` with a shared\ntimestamp, so runs never overwrite each other.\n\n## 2026-11-19: Dependencies\nManaged by uv through `pyproject.toml` (scikit-learn, matplotlib), with\nversions left unpinned for now.\n"
+     },
+     {
+      "kind": "edit",
+      "path": "context/roadmap.md",
+      "content": "# Roadmap\n\n## Now\n- Comparing three models on moons: logistic regression 0.8133, RBF SVM (C=10)\n  0.8867, MLP 16x16 0.8867 test accuracy. SVM and MLP are tied.\n- SVM C changed 1 → 10 (C=1 was 0.8800, so +1 test point).\n\n## Next\n- Add the circles and blobs datasets.\n- Consider more simple classifiers (e.g. k-NN, decision tree).\n- Use cross-validation or several data seeds before reading anything into\n  small accuracy gaps (would need its own decision since seed is fixed at 0).\n\n## Done\n- 2026-11-19: Added MLPClassifier (16x16) to the comparison.\n- 2026-11-19: Project scaffold (`pyproject.toml`, `run.py`, `results/`, `context/`).\n"
+     },
+     {
+      "kind": "edit",
+      "path": "context/roadmap.md",
+      "content": "# Roadmap\n\n## Now\n- Comparing three models on moons: logistic regression 0.8133, RBF SVM (C=10)\n  0.8867, MLP 16x16 0.8867 test accuracy. SVM and MLP are tied.\n- SVM C changed 1 → 10 (C=1 was 0.8800, so +1 test point).\n\n## Next\n- Add the circles and blobs datasets.\n- Consider more simple classifiers (e.g. k-NN, decision tree).\n- Use cross-validation or several data seeds before reading anything into\n  small accuracy gaps (would need its own decision since seed is fixed at 0).\n\n## Done\n- 2026-11-19: SVM C raised from 1 to 10.\n- 2026-11-19: Added MLPClassifier (16x16) to the comparison.\n- 2026-11-19: Project scaffold (`pyproject.toml`, `run.py`, `results/`, `context/`).\n"
+     },
+     {
+      "kind": "edit",
+      "path": "context/notebook/2026-11-19.md",
+      "content": "# 2026-11-19\n\n## Scaffolded the project\n- Added `pyproject.toml` (scikit-learn, matplotlib) and `run.py`.\n- `run.py` trains logistic regression and an RBF SVM (C=1) on moons, saves a CSV\n  of test accuracies and a plot of the decision boundaries to `results/`.\n- First run (`results/20261119-082122.*`):\n  - logistic_regression: 0.8133\n  - svm_rbf_C1: 0.8800\n- As expected, the linear boundary can't follow the curved moons, but the RBF SVM can.\n- Setup choices are logged in `decisions.md`.\n\n## Added a small neural net\n- Added `MLPClassifier` (two hidden layers of 16) as a flexible model to compare\n  with the SVM.\n- Run `results/20261119-082948.*`:\n  - logistic_regression: 0.8133\n  - svm_rbf_C1: 0.8800\n  - mlp_16x16: 0.8867\n- MLP vs SVM is one test point out of 150, so that's noise rather than a\n  real win. In the plot, both find a similar curved boundary; the MLP's is\n  piecewise-linear (ReLU kinks), the SVM's is smooth.\n\n## Raised SVM C from 1 to 10\n- Reason: C=1 underfits the moons. Logged in `decisions.md`; the old C=1\n  decision is marked superseded.\n- Run `results/20261119-084342.*`:\n  - logistic_regression: 0.8133\n  - svm_rbf_C10: 0.8867\n  - mlp_16x16: 0.8867\n- Side check, SVM train/test: C=1 0.9029/0.8800, C=10 0.9114/0.8867.\n  It's a small gain (+1 test point), and C=1 had little train/test gap, so the\n  evidence for underfitting on this split is weak. Worth re-checking with CV.\n"
+     },
+     {
+      "kind": "text",
+      "text": "I changed the SVM's C from 1 to 10 in [run.py](run.py) and reran the benchmark. The SVM now ties the neural net:\n\n| Model | Test accuracy |\n|---|---|\n| Logistic regression | 0.8133 |\n| RBF SVM (C=10) | 0.8867 (was 0.8800 at C=1) |\n| Neural net (2 layers of 16) | 0.8867 |\n\n**The evidence that C=1 underfit is weak.** I checked the SVM's training accuracy at both settings:\n\n| C | Train accuracy | Test accuracy |\n|---|---|---|\n| 1 | 0.9029 | 0.8800 |\n| 10 | 0.9114 | 0.8867 |\n\nThe test gain is one point out of 150, and C=1 already fit the training data about as well as it fit the test data. That doesn't look like clear underfitting. With noise at 0.3, both settings may be close to the best this data allows. I kept C=10 as you asked and wrote these numbers into the decision log next to your reason. I also changed the code comment to say \"suspected underfitting\" so it doesn't claim more than the data shows.\n\n**Records:** following AGENTS.md, the original C=1 decision is marked superseded rather than deleted. The new decision links back to it, and the roadmap and notebook are updated. The model is renamed `svm_rbf_C10` in results, so CSVs from earlier runs still say `svm_rbf_C1`."
+     }
+    ]
+   },
+   {
+    "prompt": "Run the same comparison on circles and blobs too.",
+    "events": [
+     {
+      "kind": "tool",
+      "text": "$ uv run python -c \"",
+      "reads": []
+     },
+     {
+      "kind": "write",
+      "path": "run.py",
+      "content": "\"\"\"Benchmark simple classifiers on synthetic 2D datasets (moons, circles, blobs).\n\nWrites one CSV of accuracies and one decision-boundary plot to results/.\n\"\"\"\nimport csv\nfrom datetime import datetime\nfrom pathlib import Path\n\nimport matplotlib\n\nmatplotlib.use(\"Agg\")  # no display needed\nimport matplotlib.pyplot as plt\nimport numpy as np\nfrom sklearn.base import clone\nfrom sklearn.datasets import make_blobs, make_circles, make_moons\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.neural_network import MLPClassifier\nfrom sklearn.svm import SVC\n\nSEED = 0  # never change\n\n# Datasets: 500 points each, two classes.\ndatasets = {\n    \"moons\": make_moons(n_samples=500, noise=0.3, random_state=SEED),\n    \"circles\": make_circles(n_samples=500, noise=0.2, factor=0.5, random_state=SEED),\n    \"blobs\": make_blobs(n_samples=500, centers=2, random_state=SEED),\n}\n\nmodels = {\n    \"logistic_regression\": LogisticRegression(random_state=SEED),\n    # C=10 (was 1) to reduce suspected underfitting; see context/decisions.md.\n    \"svm_rbf_C10\": SVC(kernel=\"rbf\", C=10, random_state=SEED),\n    # Small neural net: two hidden layers of 16 units.\n    \"mlp_16x16\": MLPClassifier(\n        hidden_layer_sizes=(16, 16), max_iter=2000, random_state=SEED\n    ),\n}\n\n# One plot: a row per dataset, a column per model.\nfig, axes = plt.subplots(\n    len(datasets), len(models), figsize=(5 * len(models), 4.5 * len(datasets))\n)\n\nresults = []\nfor row, (ds_name, (X, y)) in enumerate(datasets.items()):\n    # 70/30 train/test split.\n    X_train, X_test, y_train, y_test = train_test_split(\n        X, y, test_size=0.3, random_state=SEED\n    )\n\n    # Grid for drawing decision boundaries.\n    xx, yy = np.meshgrid(\n        np.linspace(X[:, 0].min() - 0.5, X[:, 0].max() + 0.5, 300),\n        np.linspace(X[:, 1].min() - 0.5, X[:, 1].max() + 0.5, 300),\n    )\n    grid = np.c_[xx.ravel(), yy.ravel()]\n\n    for col, (name, template) in enumerate(models.items()):\n        model = clone(template)  # fresh, untrained copy per dataset\n        model.fit(X_train, y_train)\n        acc = model.score(X_test, y_test)\n        results.append({\"dataset\": ds_name, \"model\": name, \"test_accuracy\": round(acc, 4)})\n        print(f\"{ds_name:8s} {name}: {acc:.4f}\")\n\n        ax = axes[row, col]\n        zz = model.predict(grid).reshape(xx.shape)\n        ax.contourf(xx, yy, zz, alpha=0.25, cmap=\"coolwarm\")\n        ax.scatter(X_test[:, 0], X_test[:, 1], c=y_test, cmap=\"coolwarm\", edgecolor=\"k\", s=20)\n        ax.set_title(f\"{ds_name} / {name}\\ntest accuracy {acc:.3f}\")\n\n# One CSV and one plot per run, sharing a timestamp.\nout = Path(\"results\")\nout.mkdir(exist_ok=True)\nstamp = datetime.now().strftime(\"%Y%m%d-%H%M%S\")\n\nwith open(out / f\"{stamp}.csv\", \"w\", newline=\"\") as f:\n    writer = csv.DictWriter(f, fieldnames=results[0].keys())\n    writer.writeheader()\n    writer.writerows(results)\n\nfig.tight_layout()\nfig.savefig(out / f\"{stamp}.png\", dpi=100)\n\nprint(f\"Saved results/{stamp}.csv and results/{stamp}.png\")\n"
+     },
+     {
+      "kind": "tool",
+      "text": "$ uv run python run.py 2>&1 | tail -12",
+      "reads": [
+       "run.py"
+      ]
+     },
+     {
+      "kind": "added",
+      "files": {
+       "results/20261119-085438.csv": "dataset,model,test_accuracy\nmoons,logistic_regression,0.8133\nmoons,svm_rbf_C10,0.8867\nmoons,mlp_16x16,0.8867\ncircles,logistic_regression,0.3533\ncircles,svm_rbf_C10,0.8733\ncircles,mlp_16x16,0.8667\nblobs,logistic_regression,0.9733\nblobs,svm_rbf_C10,0.96\nblobs,mlp_16x16,0.9667\n",
+       "results/20261119-085438.png": null
+      }
+     },
+     {
+      "kind": "text",
+      "text": "Moons numbers match the previous run, so nothing changed there. Checking the plot:"
+     },
+     {
+      "kind": "tool",
+      "text": "Read results/20261119-085438.png",
+      "reads": [
+       "results/20261119-085438.png"
+      ]
+     },
+     {
+      "kind": "text",
+      "text": "The plot looks right. One thing worth noting for the C decision: on blobs, the C=10 SVM bends its boundary to reach individual points, a hint of overfitting."
+     },
+     {
+      "kind": "edit",
+      "path": "context/roadmap.md",
+      "content": "# Roadmap\n\n## Now\n- Comparing three models on all three datasets (test accuracy):\n\n  | dataset | logistic | SVM C=10 | MLP 16x16 |\n  |---|---|---|---|\n  | moons   | 0.8133 | 0.8867 | 0.8867 |\n  | circles | 0.3533 | 0.8733 | 0.8667 |\n  | blobs   | 0.9733 | 0.9600 | 0.9667 |\n\n- SVM and MLP are within a point or two everywhere. Logistic regression wins\n  on blobs and fails on circles.\n\n## Next\n- Add the circles and blobs datasets.\n- Consider more simple classifiers (e.g. k-NN, decision tree).\n- Use cross-validation or several data seeds before reading anything into\n  small accuracy gaps (would need its own decision since seed is fixed at 0).\n\n## Done\n- 2026-11-19: SVM C raised from 1 to 10.\n- 2026-11-19: Added MLPClassifier (16x16) to the comparison.\n- 2026-11-19: Project scaffold (`pyproject.toml`, `run.py`, `results/`, `context/`).\n"
+     },
+     {
+      "kind": "edit",
+      "path": "context/roadmap.md",
+      "content": "# Roadmap\n\n## Now\n- Comparing three models on all three datasets (test accuracy):\n\n  | dataset | logistic | SVM C=10 | MLP 16x16 |\n  |---|---|---|---|\n  | moons   | 0.8133 | 0.8867 | 0.8867 |\n  | circles | 0.3533 | 0.8733 | 0.8667 |\n  | blobs   | 0.9733 | 0.9600 | 0.9667 |\n\n- SVM and MLP are within a point or two everywhere. Logistic regression wins\n  on blobs and fails on circles.\n\n## Next\n- Re-check SVM C: C=10 slightly overfits on blobs (boundary bends toward\n  single points). Worth a CV comparison of C=1 vs 10 across all datasets.\n- Consider more simple classifiers (e.g. k-NN, decision tree).\n- Use cross-validation or several data seeds before reading anything into\n  small accuracy gaps (would need its own decision since seed is fixed at 0).\n\n## Done\n- 2026-11-19: SVM C raised from 1 to 10.\n- 2026-11-19: Added MLPClassifier (16x16) to the comparison.\n- 2026-11-19: Project scaffold (`pyproject.toml`, `run.py`, `results/`, `context/`).\n"
+     },
+     {
+      "kind": "edit",
+      "path": "context/roadmap.md",
+      "content": "# Roadmap\n\n## Now\n- Comparing three models on all three datasets (test accuracy):\n\n  | dataset | logistic | SVM C=10 | MLP 16x16 |\n  |---|---|---|---|\n  | moons   | 0.8133 | 0.8867 | 0.8867 |\n  | circles | 0.3533 | 0.8733 | 0.8667 |\n  | blobs   | 0.9733 | 0.9600 | 0.9667 |\n\n- SVM and MLP are within a point or two everywhere. Logistic regression wins\n  on blobs and fails on circles.\n\n## Next\n- Re-check SVM C: C=10 slightly overfits on blobs (boundary bends toward\n  single points). Worth a CV comparison of C=1 vs 10 across all datasets.\n- Consider more simple classifiers (e.g. k-NN, decision tree).\n- Use cross-validation or several data seeds before reading anything into\n  small accuracy gaps (would need its own decision since seed is fixed at 0).\n\n## Done\n- 2026-11-19: Added circles and blobs datasets.\n- 2026-11-19: SVM C raised from 1 to 10.\n- 2026-11-19: Added MLPClassifier (16x16) to the comparison.\n- 2026-11-19: Project scaffold (`pyproject.toml`, `run.py`, `results/`, `context/`).\n"
+     },
+     {
+      "kind": "edit",
+      "path": "context/decisions.md",
+      "content": "# Decisions\n\n## 2026-11-19: Moons dataset setup\n`make_moons(n_samples=500, noise=0.3, random_state=0)`, 70/30 train/test split\n(`random_state=0`). Metric is test accuracy.\n\n## 2026-11-19: Initial models\n**Partly superseded by \"SVM C raised to 10\" (2026-11-19): the SVM's C is now 10.**\n`LogisticRegression` with defaults, and `SVC(kernel=\"rbf\", C=1)` (gamma left at\nsklearn's default `\"scale\"`). No feature scaling: moons features are already on\na similar scale.\n\n## 2026-11-19: Add a small neural net\n`MLPClassifier(hidden_layer_sizes=(16, 16), max_iter=2000, random_state=0)`,\nother settings at sklearn defaults (ReLU, Adam). Kept small, as a flexible\nmodel to compare with the RBF SVM. `max_iter` raised so it converges.\n\n## 2026-11-19: SVM C raised to 10\nSupersedes the C=1 part of \"Initial models\". Now `SVC(kernel=\"rbf\", C=10)`,\ngamma still `\"scale\"`; model renamed `svm_rbf_C10` in results.\nReason (user's call): C=1 underfits the moons.\nMeasured on the fixed split (seed 0):\n- C=1: train 0.9029, test 0.8800\n- C=10: train 0.9114, test 0.8867\nThe gain is one test point out of 150 and the train/test gap was small at\nC=1, so this split gives only weak evidence of underfitting. With noise=0.3,\nboth may be close to the best achievable accuracy.\n\n## 2026-11-19: Circles and blobs datasets\nAll 500 samples, 70/30 split, seed 0, like moons:\n- `make_circles(noise=0.2, factor=0.5)`: inner ring half the radius of the\n  outer one. Not linearly separable at all.\n- `make_blobs(centers=2)` with default `cluster_std=1.0`: nearly linearly\n  separable, the \"easy\" case where a linear model should do well.\nSame models and settings on every dataset (each model cloned fresh per\ndataset). Results stay one CSV and one plot per run: the CSV has a `dataset`\ncolumn, and the plot is a grid with a row per dataset, a column per model.\n\n## 2026-11-19: Results file naming\nEach run writes `results/<YYYYMMDD-HHMMSS>.csv` and `.png` with a shared\ntimestamp, so runs never overwrite each other.\n\n## 2026-11-19: Dependencies\nManaged by uv through `pyproject.toml` (scikit-learn, matplotlib), with\nversions left unpinned for now.\n"
+     },
+     {
+      "kind": "edit",
+      "path": "context/notebook/2026-11-19.md",
+      "content": "# 2026-11-19\n\n## Scaffolded the project\n- Added `pyproject.toml` (scikit-learn, matplotlib) and `run.py`.\n- `run.py` trains logistic regression and an RBF SVM (C=1) on moons, saves a CSV\n  of test accuracies and a plot of the decision boundaries to `results/`.\n- First run (`results/20261119-082122.*`):\n  - logistic_regression: 0.8133\n  - svm_rbf_C1: 0.8800\n- As expected, the linear boundary can't follow the curved moons, but the RBF SVM can.\n- Setup choices are logged in `decisions.md`.\n\n## Added a small neural net\n- Added `MLPClassifier` (two hidden layers of 16) as a flexible model to compare\n  with the SVM.\n- Run `results/20261119-082948.*`:\n  - logistic_regression: 0.8133\n  - svm_rbf_C1: 0.8800\n  - mlp_16x16: 0.8867\n- MLP vs SVM is one test point out of 150, so that's noise rather than a\n  real win. In the plot, both find a similar curved boundary; the MLP's is\n  piecewise-linear (ReLU kinks), the SVM's is smooth.\n\n## Raised SVM C from 1 to 10\n- Reason: C=1 underfits the moons. Logged in `decisions.md`; the old C=1\n  decision is marked superseded.\n- Run `results/20261119-084342.*`:\n  - logistic_regression: 0.8133\n  - svm_rbf_C10: 0.8867\n  - mlp_16x16: 0.8867\n- Side check, SVM train/test: C=1 0.9029/0.8800, C=10 0.9114/0.8867.\n  It's a small gain (+1 test point), and C=1 had little train/test gap, so the\n  evidence for underfitting on this split is weak. Worth re-checking with CV.\n\n## Added circles and blobs\n- `run.py` now loops over moons, circles and blobs with the same three models.\n  Dataset settings are in `decisions.md`.\n- Run `results/20261119-085438.*` (moons unchanged from the last run):\n\n  | dataset | logistic | SVM C=10 | MLP 16x16 |\n  |---|---|---|---|\n  | moons   | 0.8133 | 0.8867 | 0.8867 |\n  | circles | 0.3533 | 0.8733 | 0.8667 |\n  | blobs   | 0.9733 | 0.9600 | 0.9667 |\n\n- Circles: logistic regression is below chance (0.35). No straight line can\n  split concentric rings; the one it fit to the training set happens to do\n  badly on the test set. SVM and MLP both find the ring.\n- Blobs: logistic regression is best, as expected for nearly separable data.\n  The C=10 SVM boundary bends to chase individual points, a sign of mild\n  overfitting. That cuts against the C=1 → 10 change (see roadmap Next).\n- SVM vs MLP: within 1 test point on every dataset. No real difference.\n"
+     },
+     {
+      "kind": "text",
+      "text": "[run.py](run.py) now runs the same three models on moons, circles and blobs. Each run still writes one CSV, which now has a `dataset` column, and one [plot](results/20261119-085438.png) with a row per dataset and a column per model.\n\n| Dataset | Logistic regression | SVM (C=10) | Neural net |\n|---|---|---|---|\n| Moons | 0.8133 | 0.8867 | 0.8867 |\n| Circles | 0.3533 | 0.8733 | 0.8667 |\n| Blobs | 0.9733 | 0.9600 | 0.9667 |\n\nMoons scores are the same as the last run.\n\n**What the results show**\n- **Circles:** logistic regression scores 0.35, worse than a coin flip. No straight line can separate a ring from the circle inside it, and the line it learned happens to do badly on the test points. The SVM and neural net both find the ring.\n- **Blobs:** the two groups are almost separable by a straight line, so logistic regression does best.\n- **SVM vs neural net:** they're within one test point of each other on every dataset, so there's no real difference.\n\n**Something to reconsider about C=10:** on blobs, the C=10 SVM's boundary bends to reach individual points. That's a mild sign of overfitting, the opposite of the underfitting the change was meant to fix. I didn't change anything, but I added it to the roadmap as something to re-check.\n\n**Data settings:**\n- **Circles:** noise 0.2, with the inner ring half the radius of the outer one.\n- **Blobs:** two groups at sklearn's default spread.\n\nBoth use 500 points and the same 70/30 split and seed 0 as moons. These choices are in decisions.md, and the notebook and roadmap are updated."
+     }
+    ]
+   }
+  ]
+ },
+ "withNotes": {
+  "folder": "with-notes",
+  "start": {
+   "AGENTS.md": "# Classifier benchmark\n\n## What this is\nA small benchmark comparing simple classifiers on synthetic 2D datasets\nfrom scikit-learn (moons, circles, blobs).\n\n## How to run\nuv run python run.py\n\n## Rules\n- Keep the code simple: one script, lightly commented.\n- Random seed is 0. Never change it.\n- Results go in results/: one CSV and one plot per run.\n\n## Notes\n- context/roadmap.md: where we are. \"Now\" at the top.\n- context/decisions.md: dated decisions. When one changes, mark the old one\n  superseded. Never delete it.\n- context/notebook/: one dated entry per work session.\n\nAfter each step, update the roadmap and the notebook, and log any decision.\n",
+   "context/decisions.md": "# Decisions\n\nNewest first. When a decision changes, mark the old one superseded. Never delete it.\n\n## Current\n\n| ID | Date | Decision | Why |\n|----|------|----------|-----|\n| D5 | 2026-11-12 | Add the circles and blobs datasets | Moons alone tests one boundary shape. Circles needs a closed curved boundary; blobs is nearly linear. |\n| D4 | 2026-11-10 | SVM C = 10 (supersedes D2) | On moons, C = 1 slightly underfits: test accuracy 0.947 vs 0.960 with C = 10 (train 0.951 vs 0.969). |\n| D3 | 2026-11-05 | Add a small MLP (two hidden layers of 16) | To compare a flexible nonlinear model with the SVM. |\n| D1 | 2026-11-03 | Seed 0, 70/30 train/test split, standardised features | Every model sees the same split, so results are comparable. |\n\n## Superseded\n\n| ID | Date | Decision | Why | Superseded by |\n|----|------|----------|-----|---------------|\n| D2 | 2026-11-03 | SVM C = 1 | scikit-learn default, as a starting point. | D4, 2026-11-10 |\n",
+   "context/notebook/2026-11-03.md": "# 2026-11-03: Scaffold\n\n- Wrote run.py: logistic regression and an RBF SVM (C = 1) on moons (500 points, noise 0.2).\n- Test accuracy: logistic 0.833, SVM 0.947. The linear model can't follow the moon shape, as expected.\n- Results in results/accuracy.csv and results/accuracy.png.\n- Decisions: D1 (seed, split, scaling), D2 (C = 1).\n",
+   "context/notebook/2026-11-05.md": "# 2026-11-05: Add the MLP\n\n- Added MLPClassifier, two hidden layers of 16 (D3).\n- Moons test accuracy: logistic 0.833, SVM 0.947, MLP 0.947.\n",
+   "context/notebook/2026-11-10.md": "# 2026-11-10: SVM C from 1 to 10\n\n- Tried C = 0.1, 1, 10, 100 on moons. C = 1 slightly underfits (train 0.951, test 0.947).\n- C = 10: train 0.969, test 0.960. C = 100 gave the same test accuracy, so kept the smaller value.\n- Logged as D4; D2 marked superseded.\n",
+   "context/notebook/2026-11-12.md": "# 2026-11-12: Circles and blobs\n\n- Added circles (noise 0.2, factor 0.5) and blobs (2 centres, std 2.0), same split and seed (D5).\n- Test accuracy:\n\n| dataset | logistic | svm_rbf | mlp |\n|---------|----------|---------|-----|\n| moons   | 0.833 | 0.960 | 0.947 |\n| circles | 0.347 | 0.873 | 0.873 |\n| blobs   | 0.793 | 0.800 | 0.787 |\n\n- Logistic fails on circles, as expected for a linear boundary. On blobs all three are about equal: the classes overlap, so no model can do much better.\n",
+   "context/roadmap.md": "# Roadmap\n\n## Now\nStep 4 is done: the comparison runs on moons, circles and blobs.\nNext: decide between adding a dataset and tuning the MLP (step 5).\n\n## Steps\n1. [x] Scaffold: logistic regression and RBF SVM on moons (2026-11-03)\n2. [x] Add a small neural net (MLP) (2026-11-05)\n3. [x] Change the SVM's C from 1 to 10 (2026-11-10, see D4)\n4. [x] Run the comparison on circles and blobs (2026-11-12)\n5. [ ] Open: add a dataset, or tune the MLP?\n",
+   "pyproject.toml": "[project]\nname = \"classifier-benchmark\"\nversion = \"0.1.0\"\nrequires-python = \">=3.11\"\ndependencies = [\"scikit-learn\", \"matplotlib\"]\n",
+   "results/accuracy.csv": "dataset,model,test_accuracy\nmoons,logistic,0.833\nmoons,svm_rbf,0.96\nmoons,mlp,0.947\ncircles,logistic,0.347\ncircles,svm_rbf,0.873\ncircles,mlp,0.873\nblobs,logistic,0.793\nblobs,svm_rbf,0.8\nblobs,mlp,0.787\n",
+   "results/accuracy.png": null,
+   "run.py": "\"\"\"Compare simple classifiers on synthetic 2D datasets.\"\"\"\nimport csv\nfrom pathlib import Path\n\nimport matplotlib.pyplot as plt\nfrom sklearn.datasets import make_blobs, make_circles, make_moons\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.neural_network import MLPClassifier\nfrom sklearn.pipeline import make_pipeline\nfrom sklearn.preprocessing import StandardScaler\nfrom sklearn.svm import SVC\n\nSEED = 0\nRESULTS = Path(\"results\")\n\nDATASETS = {\n    \"moons\": lambda: make_moons(n_samples=500, noise=0.2, random_state=SEED),\n    \"circles\": lambda: make_circles(n_samples=500, noise=0.2, factor=0.5, random_state=SEED),\n    \"blobs\": lambda: make_blobs(n_samples=500, centers=2, cluster_std=2.0, random_state=SEED),\n}\n\nMODELS = {\n    \"logistic\": lambda: LogisticRegression(),\n    \"svm_rbf\": lambda: SVC(kernel=\"rbf\", C=10),\n    \"mlp\": lambda: MLPClassifier(hidden_layer_sizes=(16, 16), max_iter=2000, random_state=SEED),\n}\n\n\ndef main():\n    RESULTS.mkdir(exist_ok=True)\n    rows = []\n    for data_name, make_data in DATASETS.items():\n        X, y = make_data()\n        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=SEED)\n        for model_name, make_model in MODELS.items():\n            model = make_pipeline(StandardScaler(), make_model()).fit(X_train, y_train)\n            acc = model.score(X_test, y_test)\n            rows.append({\"dataset\": data_name, \"model\": model_name, \"test_accuracy\": round(acc, 3)})\n            print(f\"{data_name:8s} {model_name:9s} {acc:.3f}\")\n\n    with open(RESULTS / \"accuracy.csv\", \"w\", newline=\"\") as f:\n        writer = csv.DictWriter(f, fieldnames=[\"dataset\", \"model\", \"test_accuracy\"])\n        writer.writeheader()\n        writer.writerows(rows)\n\n    # grouped bar chart: one group per dataset, one bar per model\n    fig, ax = plt.subplots(figsize=(7, 4))\n    width = 0.8 / len(MODELS)\n    for i, model_name in enumerate(MODELS):\n        accs = [r[\"test_accuracy\"] for r in rows if r[\"model\"] == model_name]\n        xs = [d + i * width for d in range(len(DATASETS))]\n        ax.bar(xs, accs, width, label=model_name)\n    ax.set_xticks([d + width * (len(MODELS) - 1) / 2 for d in range(len(DATASETS))], list(DATASETS))\n    ax.set_ylim(0, 1.0)\n    ax.set_ylabel(\"test accuracy\")\n    ax.legend()\n    fig.tight_layout()\n    fig.savefig(RESULTS / \"accuracy.png\", dpi=150)\n\n\nif __name__ == \"__main__\":\n    main()\n"
+  },
+  "steps": [
+   {
+    "prompt": "Where are we, and why did we pick this value of C?",
+    "events": [
+     {
+      "kind": "tool",
+      "text": "$ cat context/roadmap.md context/decisions.md && ls context/notebook && tail -n +1 contex…",
+      "reads": [
+       "context/decisions.md",
+       "context/notebook/2026-11-03.md",
+       "context/notebook/2026-11-05.md",
+       "context/notebook/2026-11-10.md",
+       "context/notebook/2026-11-12.md",
+       "context/roadmap.md"
+      ]
+     },
+     {
+      "kind": "tool",
+      "text": "$ grep -n \"C=\\|C =\\|SVC\" run.py; cat results/accuracy.csv",
+      "reads": [
+       "results/accuracy.csv",
+       "run.py"
+      ]
+     },
+     {
+      "kind": "text",
+      "text": "**Where we are:** Step 4 of 5 is done. The benchmark runs logistic regression, an RBF SVM and an MLP on moons, circles and blobs. The last run in [results/accuracy.csv](results/accuracy.csv) gives these test accuracies:\n\n| dataset | logistic | svm_rbf | mlp |\n|---|---|---|---|\n| moons | 0.833 | 0.960 | 0.947 |\n| circles | 0.347 | 0.873 | 0.873 |\n| blobs | 0.793 | 0.800 | 0.787 |\n\nLogistic regression fails on circles because it can only draw a straight boundary. On blobs all three models score about the same, because the classes overlap and no model can do much better.\n\n**What's next (step 5, not decided yet):** add another dataset, or tune the MLP. That's your call.\n\n**Why C = 10 (decision D4, 2026-11-10):** The SVM started at C = 1, the scikit-learn default (D2). On 2026-11-10 we tried C = 0.1, 1, 10 and 100 on moons:\n- **C = 1 slightly underfit:** train 0.951, test 0.947.\n- **C = 10 did better:** train 0.969, test 0.960.\n- **C = 100 gave the same test accuracy as C = 10**, so we kept the smaller value. A smaller C means less risk of overfitting.\n\nD2 is marked superseded by D4 in [context/decisions.md](context/decisions.md), and [run.py:25](run.py:25) uses `C=10`, so the code matches the notes.\n\nOne caveat: C was only tuned on moons. It was never re-checked on circles or blobs after they were added. If you go the tuning route in step 5, it's worth checking C on those too.\n\nI only read files this time and changed nothing, so the roadmap and notebook don't need updating."
+     }
+    ]
+   }
+  ]
+ },
+ "noNotes": {
+  "folder": "no-notes",
+  "start": {
+   "pyproject.toml": "[project]\nname = \"classifier-benchmark\"\nversion = \"0.1.0\"\nrequires-python = \">=3.11\"\ndependencies = [\"scikit-learn\", \"matplotlib\"]\n",
+   "results/accuracy.csv": "dataset,model,test_accuracy\nmoons,logistic,0.833\nmoons,svm_rbf,0.96\nmoons,mlp,0.947\ncircles,logistic,0.347\ncircles,svm_rbf,0.873\ncircles,mlp,0.873\nblobs,logistic,0.793\nblobs,svm_rbf,0.8\nblobs,mlp,0.787\n",
+   "results/accuracy.png": null,
+   "run.py": "\"\"\"Compare simple classifiers on synthetic 2D datasets.\"\"\"\nimport csv\nfrom pathlib import Path\n\nimport matplotlib.pyplot as plt\nfrom sklearn.datasets import make_blobs, make_circles, make_moons\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.neural_network import MLPClassifier\nfrom sklearn.pipeline import make_pipeline\nfrom sklearn.preprocessing import StandardScaler\nfrom sklearn.svm import SVC\n\nSEED = 0\nRESULTS = Path(\"results\")\n\nDATASETS = {\n    \"moons\": lambda: make_moons(n_samples=500, noise=0.2, random_state=SEED),\n    \"circles\": lambda: make_circles(n_samples=500, noise=0.2, factor=0.5, random_state=SEED),\n    \"blobs\": lambda: make_blobs(n_samples=500, centers=2, cluster_std=2.0, random_state=SEED),\n}\n\nMODELS = {\n    \"logistic\": lambda: LogisticRegression(),\n    \"svm_rbf\": lambda: SVC(kernel=\"rbf\", C=10),\n    \"mlp\": lambda: MLPClassifier(hidden_layer_sizes=(16, 16), max_iter=2000, random_state=SEED),\n}\n\n\ndef main():\n    RESULTS.mkdir(exist_ok=True)\n    rows = []\n    for data_name, make_data in DATASETS.items():\n        X, y = make_data()\n        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=SEED)\n        for model_name, make_model in MODELS.items():\n            model = make_pipeline(StandardScaler(), make_model()).fit(X_train, y_train)\n            acc = model.score(X_test, y_test)\n            rows.append({\"dataset\": data_name, \"model\": model_name, \"test_accuracy\": round(acc, 3)})\n            print(f\"{data_name:8s} {model_name:9s} {acc:.3f}\")\n\n    with open(RESULTS / \"accuracy.csv\", \"w\", newline=\"\") as f:\n        writer = csv.DictWriter(f, fieldnames=[\"dataset\", \"model\", \"test_accuracy\"])\n        writer.writeheader()\n        writer.writerows(rows)\n\n    # grouped bar chart: one group per dataset, one bar per model\n    fig, ax = plt.subplots(figsize=(7, 4))\n    width = 0.8 / len(MODELS)\n    for i, model_name in enumerate(MODELS):\n        accs = [r[\"test_accuracy\"] for r in rows if r[\"model\"] == model_name]\n        xs = [d + i * width for d in range(len(DATASETS))]\n        ax.bar(xs, accs, width, label=model_name)\n    ax.set_xticks([d + width * (len(MODELS) - 1) / 2 for d in range(len(DATASETS))], list(DATASETS))\n    ax.set_ylim(0, 1.0)\n    ax.set_ylabel(\"test accuracy\")\n    ax.legend()\n    fig.tight_layout()\n    fig.savefig(RESULTS / \"accuracy.png\", dpi=150)\n\n\nif __name__ == \"__main__\":\n    main()\n"
+  },
+  "steps": [
+   {
+    "prompt": "Where are we, and why did we pick this value of C?",
+    "events": [
+     {
+      "kind": "tool",
+      "text": "$ ls -la && find . -type f -not -path '*/.git/*' | head -100; ls \"~/.claude/…",
+      "reads": []
+     },
+     {
+      "kind": "tool",
+      "text": "$ cat pyproject.toml run.py && echo ---- && cat results/accuracy.csv",
+      "reads": [
+       "pyproject.toml",
+       "results/accuracy.csv",
+       "run.py"
+      ]
+     },
+     {
+      "kind": "text",
+      "text": "**Where we are:** This project is a small classifier benchmark. [run.py](run.py) trains three models on three synthetic 2D datasets (moons, circles, blobs, 500 points each, 70/30 split, seed 0):\n\n- logistic regression\n- an RBF SVM\n- a 16×16 MLP\n\nEach model runs after a StandardScaler. The latest results are in [results/accuracy.csv](results/accuracy.csv) and [results/accuracy.png](results/accuracy.png):\n\n| dataset | logistic | svm_rbf | mlp |\n|---|---|---|---|\n| moons | 0.833 | **0.960** | 0.947 |\n| circles | 0.347 | **0.873** | **0.873** |\n| blobs | 0.793 | **0.800** | 0.787 |\n\nThe SVM is best or tied for best on all three datasets. Logistic regression fails on circles, as expected, because the classes can't be split by a straight line. The results were written after `run.py` was last changed, so they match the current code.\n\n**Why C=10:** I can't find a recorded reason, and I'd rather not make one up. The folder isn't a git repo, there are no notes or comments, and I have no saved memory from an earlier session. C=10 isn't scikit-learn's default of 1.0, so someone chose it on purpose. But nothing here shows it was tuned. It also wasn't picked on a validation set: the script only does one train/test split. If C was chosen by looking at these test scores, the SVM's lead is a little optimistic.\n\nIf you remember the reason, I can add it as a comment in `run.py`. Otherwise, a cross-validated sweep over C on the training data only would show whether 10 is a good choice or just a guess that worked."
+     }
+    ]
+   }
+  ]
+ },
+ "messy": {
+  "folder": "03-messy-context",
+  "start": {
+   "AGENTS.md": "# Classifier benchmark\n\n## What this is\nA small benchmark of a linear model (logistic regression) on the moons\ndataset from scikit-learn. Linear model only for now.\n\n## How to run\nuv run python run.py\n\n## Rules\n- Keep the code simple: one script, lightly commented.\n- Random seed is 0. Never change it.\n- Results go in results/: one CSV and one plot per run.\n\n## Notes\n- context/roadmap.md: where we are. \"Now\" at the top.\n- context/decisions.md: dated decisions. When one changes, mark the old one\n  superseded. Never delete it.\n- context/notebook/: one dated entry per work session.\n\nAfter each step, update the roadmap and the notebook, and log any decision.\n",
+   "context/decisions.md": "# Decisions\n\n## D1 (2026-11-03)\nSeed 0, 70/30 split, standardised features.\n\n## D2 (2026-11-03)\nSVM C = 1. This is the value we use.\n\n### run log 2026-11-04 09:12\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-04 10:40\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-04 11:05\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-04 14:22\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-04 15:47\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-04 16:30\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-05 09:12\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-05 10:40\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-05 11:05\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-05 14:22\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-05 15:47\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-05 16:30\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-06 09:12\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-06 10:40\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-06 11:05\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-06 14:22\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-06 15:47\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-06 16:30\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-07 09:12\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-07 10:40\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-07 11:05\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-07 14:22\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-07 15:47\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-07 16:30\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n## D3 (2026-11-05)\nAdd a small MLP (two hidden layers of 16).\n\n### run log 2026-11-08 09:12\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-08 10:40\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-08 11:05\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-08 14:22\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-08 15:47\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-08 16:30\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-09 09:12\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-09 10:40\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-09 11:05\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-09 14:22\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-09 15:47\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-09 16:30\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.947\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n## D4 (2026-11-10)\nchanged C to 10, C=1 underfit a bit on moons (0.947 -> 0.960)\n\n### run log 2026-11-10 09:12\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.960\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-10 10:40\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.960\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-10 11:05\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.960\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-10 14:22\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.960\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-10 15:47\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.960\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-10 16:30\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.960\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-11 09:12\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.960\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-11 10:40\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.960\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-11 11:05\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.960\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-11 14:22\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.960\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-11 15:47\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.960\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-11 16:30\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.960\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-12 09:12\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.960\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-12 10:40\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.960\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-12 11:05\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.960\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-12 14:22\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.960\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-12 15:47\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.960\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n### run log 2026-11-12 16:30\n```\nmoons    logistic  0.833\nmoons    svm_rbf   0.960\nmoons    mlp       0.947\n```\nscore looks ok. rerun later to check.\n\n",
+   "context/notebook/2026-11-03.md": "# 2026-11-03: Scaffold\n\n- Wrote run.py: logistic regression and an RBF SVM (C = 1) on moons (500 points, noise 0.2).\n- Test accuracy: logistic 0.833, SVM 0.947. The linear model can't follow the moon shape, as expected.\n- Results in results/accuracy.csv and results/accuracy.png.\n- Decisions: D1 (seed, split, scaling), D2 (C = 1).\n",
+   "context/notebook/2026-11-05.md": "# 2026-11-05: Add the MLP\n\n- Added MLPClassifier, two hidden layers of 16 (D3).\n- Moons test accuracy: logistic 0.833, SVM 0.947, MLP 0.947.\n",
+   "context/notebook/2026-11-10.md": "# 2026-11-10: SVM C from 1 to 10\n\n- Tried C = 0.1, 1, 10, 100 on moons. C = 1 slightly underfits (train 0.951, test 0.947).\n- C = 10: train 0.969, test 0.960. C = 100 gave the same test accuracy, so kept the smaller value.\n- Logged as D4; D2 marked superseded.\n",
+   "context/notebook/2026-11-12.md": "# 2026-11-12: Circles and blobs\n\n- Added circles (noise 0.2, factor 0.5) and blobs (2 centres, std 2.0), same split and seed (D5).\n- Test accuracy:\n\n| dataset | logistic | svm_rbf | mlp |\n|---------|----------|---------|-----|\n| moons   | 0.833 | 0.960 | 0.947 |\n| circles | 0.347 | 0.873 | 0.873 |\n| blobs   | 0.793 | 0.800 | 0.787 |\n\n- Logistic fails on circles, as expected for a linear boundary. On blobs all three are about equal: the classes overlap, so no model can do much better.\n",
+   "context/roadmap.md": "# Roadmap\n\n## Now\nStep 2: adding a small neural net (in progress).\n\n## Steps\n1. [x] Scaffold: logistic regression and RBF SVM on moons (2026-11-03)\n2. [ ] Add a small neural net (MLP)\n3. [ ] Tune the SVM\n4. [ ] Try more datasets\n",
+   "pyproject.toml": "[project]\nname = \"classifier-benchmark\"\nversion = \"0.1.0\"\nrequires-python = \">=3.11\"\ndependencies = [\"scikit-learn\", \"matplotlib\"]\n",
+   "results/accuracy.csv": "dataset,model,test_accuracy\nmoons,logistic,0.833\nmoons,svm_rbf,0.96\nmoons,mlp,0.947\ncircles,logistic,0.347\ncircles,svm_rbf,0.873\ncircles,mlp,0.873\nblobs,logistic,0.793\nblobs,svm_rbf,0.8\nblobs,mlp,0.787\n",
+   "results/accuracy.png": null,
+   "run.py": "\"\"\"Compare simple classifiers on synthetic 2D datasets.\"\"\"\nimport csv\nfrom pathlib import Path\n\nimport matplotlib.pyplot as plt\nfrom sklearn.datasets import make_blobs, make_circles, make_moons\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.neural_network import MLPClassifier\nfrom sklearn.pipeline import make_pipeline\nfrom sklearn.preprocessing import StandardScaler\nfrom sklearn.svm import SVC\n\nSEED = 0\nRESULTS = Path(\"results\")\n\nDATASETS = {\n    \"moons\": lambda: make_moons(n_samples=500, noise=0.2, random_state=SEED),\n    \"circles\": lambda: make_circles(n_samples=500, noise=0.2, factor=0.5, random_state=SEED),\n    \"blobs\": lambda: make_blobs(n_samples=500, centers=2, cluster_std=2.0, random_state=SEED),\n}\n\nMODELS = {\n    \"logistic\": lambda: LogisticRegression(),\n    \"svm_rbf\": lambda: SVC(kernel=\"rbf\", C=10),\n    \"mlp\": lambda: MLPClassifier(hidden_layer_sizes=(16, 16), max_iter=2000, random_state=SEED),\n}\n\n\ndef main():\n    RESULTS.mkdir(exist_ok=True)\n    rows = []\n    for data_name, make_data in DATASETS.items():\n        X, y = make_data()\n        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=SEED)\n        for model_name, make_model in MODELS.items():\n            model = make_pipeline(StandardScaler(), make_model()).fit(X_train, y_train)\n            acc = model.score(X_test, y_test)\n            rows.append({\"dataset\": data_name, \"model\": model_name, \"test_accuracy\": round(acc, 3)})\n            print(f\"{data_name:8s} {model_name:9s} {acc:.3f}\")\n\n    with open(RESULTS / \"accuracy.csv\", \"w\", newline=\"\") as f:\n        writer = csv.DictWriter(f, fieldnames=[\"dataset\", \"model\", \"test_accuracy\"])\n        writer.writeheader()\n        writer.writerows(rows)\n\n    # grouped bar chart: one group per dataset, one bar per model\n    fig, ax = plt.subplots(figsize=(7, 4))\n    width = 0.8 / len(MODELS)\n    for i, model_name in enumerate(MODELS):\n        accs = [r[\"test_accuracy\"] for r in rows if r[\"model\"] == model_name]\n        xs = [d + i * width for d in range(len(DATASETS))]\n        ax.bar(xs, accs, width, label=model_name)\n    ax.set_xticks([d + width * (len(MODELS) - 1) / 2 for d in range(len(DATASETS))], list(DATASETS))\n    ax.set_ylim(0, 1.0)\n    ax.set_ylabel(\"test accuracy\")\n    ax.legend()\n    fig.tight_layout()\n    fig.savefig(RESULTS / \"accuracy.png\", dpi=150)\n\n\nif __name__ == \"__main__\":\n    main()\n",
+   "TODO.md": "# TODO\n\n- [x] scaffold\n- [x] add MLP\n- [ ] tune SVM?? (C?)\n- [ ] circles + blobs\n- [ ] check the score on blobs, looks low\n- [ ] tidy the notes\n"
+  },
+  "steps": [
+   {
+    "prompt": "where are we?",
+    "events": [
+     {
+      "kind": "tool",
+      "text": "$ ls -R | head -50 && for f in context/roadmap.md context/decisions.md context/notebook/*…",
+      "reads": [
+       "context/decisions.md",
+       "context/notebook/2026-11-03.md",
+       "context/notebook/2026-11-05.md",
+       "context/notebook/2026-11-10.md",
+       "context/notebook/2026-11-12.md",
+       "context/roadmap.md"
+      ]
+     },
+     {
+      "kind": "tool",
+      "text": "$ cat TODO.md; echo ===; cat run.py; echo ===; cat results/accuracy.csv; ls -l results",
+      "reads": [
+       "results/accuracy.csv",
+       "run.py",
+       "TODO.md"
+      ]
+     },
+     {
+      "kind": "text",
+      "text": "The code is further along than the notes. All four roadmap steps are done. The roadmap still says you're partway through step 2.\n\n**What's been done** (from [run.py](run.py), the notebook entries and [results/accuracy.csv](results/accuracy.csv), last written Nov 18):\n\n| dataset | logistic | svm_rbf (C=10) | mlp (16,16) |\n|---|---|---|---|\n| moons | 0.833 | 0.960 | 0.947 |\n| circles | 0.347 | 0.873 | 0.873 |\n| blobs | 0.793 | 0.800 | 0.787 |\n\n1. **Setup** (Nov 3): logistic regression and an RBF SVM on moons.\n2. **Small neural net** (Nov 5): added the MLP (D3).\n3. **SVM tuning** (Nov 10): changed C from 1 to 10, which raised moons from 0.947 to 0.960 (D4).\n4. **More datasets** (Nov 12): added circles and blobs. The low blobs scores have an explanation in the notebook: the two classes overlap, so no model can do much better.\n\n**Where the notes don't match:**\n- **[roadmap.md](context/roadmap.md):** \"Now\" says step 2 is in progress, and steps 2–4 aren't ticked.\n- **[decisions.md](context/decisions.md):**\n  - D2 (C = 1) isn't marked superseded, even though the Nov 10 notebook entry says it was.\n  - D5 (the circles/blobs settings) is cited in the notebook but was never logged.\n  - The file holds about 54 run logs that repeat the same numbers, each ending in \"rerun later to check\". They bury the actual decisions.\n- **[AGENTS.md](AGENTS.md):** still says \"linear model only\". The script now runs three models on three datasets.\n- **[TODO.md](TODO.md):** three items are still open that are actually done: tuning the SVM, circles + blobs, and checking blobs. \"Tidy the notes\" is the only one still open.\n- **No notebook entry since Nov 12:** the results files are dated Nov 18, so a run happened then without a notebook entry.\n\nNothing is in progress right now. The next step is to choose the next roadmap item."
+     }
+    ]
+   }
+  ]
+ }
+}
