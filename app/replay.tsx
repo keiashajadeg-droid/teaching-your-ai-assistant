@@ -10,7 +10,7 @@ type ChatId = keyof typeof chats;
 type SceneId = "demo" | "fresh" | "messy" | "prompts";
 
 const SCENES: { id: SceneId; label: string; blurb: string }[] = [
-  { id: "demo", label: "1 · Build it", blurb: "Four prompts that only ask for code. Watch the notes on the left." },
+  { id: "demo", label: "1 · Build it", blurb: "Four prompts that only ask for code. Watch the notes appear in the folder." },
   { id: "fresh", label: "2 · Fresh chat", blurb: "Same code, same results, a brand-new chat. One copy has notes, one doesn’t." },
   { id: "messy", label: "3 · Messy notes", blurb: "The same project with stale, duplicated and contradictory notes." },
   { id: "prompts", label: "Take-home prompts", blurb: "" },
@@ -255,7 +255,10 @@ function Source({ text, fresh, md }: { text: string; fresh: Set<number>; md: boo
   const first = Math.min(...Array.from(fresh), Infinity);
   useEffect(() => {
     if (first !== Infinity) {
-      ref.current?.querySelector(`[data-line="${first}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+      // scroll inside the editor only (scrollIntoView would move the whole page on phones)
+      const line = ref.current?.querySelector<HTMLElement>(`[data-line="${first}"]`);
+      const box = ref.current?.parentElement;
+      if (line && box) box.scrollTo({ top: line.offsetTop - box.clientHeight / 2, behavior: "smooth" });
     }
   }, [text]);
   return (
@@ -277,9 +280,9 @@ function ChatPane(props: {
   nextPromptText: string | null; onSend: () => void; onSkip: () => void;
 }) {
   const { chat, items, p, waiting, done, nextPromptText, onSend, onSkip } = props;
-  const end = useRef<HTMLDivElement>(null);
+  const log = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    end.current?.scrollIntoView({ block: "end" });
+    if (log.current) log.current.scrollTop = log.current.scrollHeight;
   }, [p.n, p.reveal]);
 
   const shown: React.ReactNode[] = [];
@@ -304,11 +307,10 @@ function ChatPane(props: {
   return (
     <section className="chat">
       <p className="pane-title">Claude · new chat</p>
-      <div className="log">
+      <div className="log" ref={log}>
         {shown.length === 0 && <p className="hint">Nothing yet. Press <b>Send</b> (or Space).</p>}
         {shown}
         {p.playing && <p className="working">working…</p>}
-        <div ref={end} />
       </div>
       <div className="composer">
         {waiting && nextPromptText ? (

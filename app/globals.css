@@ -75,7 +75,7 @@ code { font-family: var(--mono); font-size: 0.9em; background: var(--blush); pad
 .ed-bar { display: flex; align-items: center; gap: 6px; padding: 6px 12px; background: var(--blush); border-bottom: 3px solid var(--ink); }
 .win-dot { width: 13px; height: 13px; border: 3px solid var(--ink); background: var(--card); }
 .ed-name { flex: 1; margin-left: 8px; font-family: var(--pixel); font-size: 22px; line-height: 1.1; }
-.ed-body { flex: 1; min-height: 0; overflow: auto; }
+.ed-body { flex: 1; min-height: 0; overflow: auto; position: relative; }
 .src { padding: 10px 0; font-family: var(--mono); font-size: 15.5px; line-height: 1.6; }
 .ln { display: flex; padding-right: 14px; }
 .ln .num { width: 46px; flex: none; text-align: right; padding-right: 14px; color: var(--mist); user-select: none; }
@@ -127,3 +127,43 @@ code { font-family: var(--mono); font-size: 0.9em; background: var(--blush); pad
 .tpl { border: 3px solid var(--ink); box-shadow: 6px 6px 0 var(--sage-deep); background: var(--card); }
 .tpl .ed-bar { background: var(--sage); }
 .tpl pre { margin: 0; padding: 16px 20px; font-family: var(--mono); font-size: 15px; white-space: pre-wrap; }
+
+/* ---------- phones and narrow windows: stack the panes, let the page scroll ---------- */
+@media (max-width: 860px) {
+  body { font-size: 16px; }
+  .app { height: auto; min-height: 100vh; }
+  .top { flex-direction: column; align-items: flex-start; gap: 10px; padding: 10px 14px; }
+  .brand { font-size: 19px; }
+  .tabs { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; padding: 0 4px 6px 0; }
+  .tab { font-size: 19px; padding: 6px 10px; white-space: nowrap; flex: none; }
+
+  .strip { flex-wrap: wrap; gap: 10px; padding: 10px 14px; }
+  .blurb { flex-basis: 100%; font-size: 16px; }
+  .sw { font-size: 19px; padding: 4px 10px; }
+  .dot { width: 32px; height: 32px; }
+
+  .ide { display: flex; flex-direction: column; gap: 18px; padding: 0 14px 12px; }
+  .tree, .editor, .chat { box-shadow: 5px 5px 0 var(--pink); }
+  .tree { box-shadow: 5px 5px 0 var(--sage-deep); }
+  /* chat first (that's where you press Send), then the open file, then the folder */
+  .chat { order: 1; height: 62vh; }
+  .editor { order: 2; height: 55vh; }
+  .tree { order: 3; max-height: 50vh; }
+
+  .src { font-size: 13px; }
+  .ln .num { width: 34px; padding-right: 8px; }
+  .md { padding: 4px 14px 16px; }
+  .md table, .msg.ai table { display: block; overflow-x: auto; }
+  .ed-name { font-size: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .send { font-size: 21px; padding: 6px 12px; }
+
+  .foot { padding: 6px 14px 16px; }
+  .keys { display: none; }
+
+  .prompts { padding: 20px 14px 40px; }
+  .prompts h1 { font-size: 34px; }
+  .prompts h2 { font-size: 25px; }
+  .pcard { grid-template-columns: 1fr; gap: 8px; }
+  .pcard .mini { justify-self: start; }
+  .tpl pre { font-size: 13px; padding: 12px 14px; }
+}
